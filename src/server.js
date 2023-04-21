@@ -2,30 +2,27 @@ const { ApolloServer, gql } = require("apollo-server");
 const fs = require("fs");
 const { dirname } = require("path");
 const path = require("path");
+const { PrismaClient } = require("@prisma/client");
 
-// HackerNewsの投稿情報
-let links = [
-    { id: "link-0", description: "tutorial1", url: "http://google1.com/" },
-    { id: "link-1", description: "tutorial2", url: "http://google2.com/" },
-    { id: "link-2", description: "tutorial3", url: "http://google3.com/" },
-]
+const prisma = new PrismaClient();
 
 // リゾルバ（スキーマに対応する）
 const resolvers = {
     Query: {
         info: () => "HackerNewsクローン",
-        feed: () => links,
+        feed: async (parent, args, context) => {
+            return context.prisma.link.findMany();
+        },
     },
     Mutation: {
-        post: (parent, args) => {
-            let idCount = links.length;
-            const link = {
-                id: `link-${idCount++}`,
-                description: args.description,
-                url: args.url,
-            }
-            links.push(link);
-            return link;
+        post: (parent, args, context) => {
+            const newLink = context.prisma.link.create({
+                data: {
+                    url: args.url,
+                    description: args.description,
+                }
+            });
+            return newLink;
         }
     }
 }
@@ -33,6 +30,9 @@ const resolvers = {
 const server = new ApolloServer({
     typeDefs: fs.readFileSync(path.join(__dirname, "schema.graphql"), "utf-8"),
     resolvers,
+    context: {
+        prisma, // ここに宣言することで、Prismaがリゾルバ内で利用できる。
+    },
 })
 
 server.listen().then(({ url }) => console.log(`${url}でサーバーを起動中...`))
